@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+SCRIPT_NAME=$( basename ${0} )
+
+echo -e "\n ${SCRIPT_NAME}: Copying modules..\n"
+sudo cp -r lib/modules/*/ /lib/modules/
+
+echo -e "\n ${SCRIPT_NAME}: Copying bzImage..\n"
+sudo cp -v bzImage /boot/vmlinuz-ShagKernel+
+
+echo -e "\n ${SCRIPT_NAME}: Copying System.map..\n"
+sudo cp -v System.map /boot/System.map-ShagKernel+
+
+if [[ ! -f /etc/mkinitcpio.d/ShagKernel+.preset ]]; then
+  echo -e "\n ${SCRIPT_NAME}: mkinitcpio preset not found. exiting...\n"
+  exit 1
+fi
+echo -e "\n ${SCRIPT_NAME}: Generating kernel initramfs images..\n"
+sudo depmod
+sudo mkinitcpio -p ShagKernel+
+
+echo -e "\n ${SCRIPT_NAME}: Regenerating GRUB configuration file..\n"
+sudo grub-mkconfig -o /boot/grub/grub.cfg
+
+echo -e "\n ${SCRIPT_NAME}: Done!\n"

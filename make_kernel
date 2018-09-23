@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+SCRIPT_NAME=$( basename ${0} )
+
+error() {
+  echo "${SCRIPT_NAME}: errors occured.. exiting."
+  exit 1
+}
+
+make clean
+make mrproper
+rm kernel_edgar.tar
+
+if ! make edgar_defconfig; then error; fi
+
+# Build kernel with CPU Cores x 2 - 2
+if ! time make -j$(( $( nproc --all ) * 2 - 2 )); then error; fi
+
+# copy modules to ./modules_edgar
+make INSTALL_MOD_PATH=${PWD}/modules_edgar modules_install
+
+# make tar with modules & zip & System.map
+mkdir edgar_kernelzip
+cp -r modules_edgar/lib/ edgar_kernelzip/
+cp arch/x86_64/boot/bzImage edgar_kernelzip/
+cp System.map edgar_kernelzip/
+cp install_kernel edgar_kernelzip/
+tar -cf edgar_kernel.tar -C edgar_kernelzip .
+rm -r modules_edgar
+rm -r edgar_kernelzip
+
+echo "${SCRIPT_NAME}: Kernel, System.map, modules, and install script compressed into edgar_kernel.tar."
