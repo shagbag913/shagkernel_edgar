@@ -975,10 +975,6 @@ static void gfs2_iomap_journaled_page_done(struct inode *inode, loff_t pos,
 {
 	struct gfs2_inode *ip = GFS2_I(inode);
 
-	if (!page_has_buffers(page)) {
-		create_empty_buffers(page, inode->i_sb->s_blocksize,
-				     (1 << BH_Dirty)|(1 << BH_Uptodate));
-	}
 	gfs2_page_add_databufs(ip, page, offset_in_page(pos), copied);
 }
 
@@ -1061,7 +1057,7 @@ static int gfs2_iomap_begin_write(struct inode *inode, loff_t pos,
 		}
 	}
 	release_metapath(&mp);
-	if (gfs2_is_jdata(ip))
+	if (!gfs2_is_stuffed(ip) && gfs2_is_jdata(ip))
 		iomap->page_done = gfs2_iomap_journaled_page_done;
 	return 0;
 
@@ -1912,10 +1908,16 @@ static int punch_hole(struct gfs2_inode *ip, u64 offset, u64 length)
 			if (ret < 0)
 				goto out;
 
-			/* issue read-ahead on metadata */
-			if (mp.mp_aheight > 1) {
-				for (; ret > 1; ret--) {
-					metapointer_range(&mp, mp.mp_aheight - ret,
+			/* On the first pass, issue read-ahead on metadata. */
+			if (mp.mp_aheight > 1 && strip_h == ip->i_height - 1) {
+				unsigned int height = mp.mp_aheight - 1;
+
+				/* No read-ahead for data blocks. */
+				if (mp.mp_aheight - 1 == strip_h)
+					height--;
+
+				for (; height >= mp.mp_aheight - ret; height--) {
+					metapointer_range(&mp, height,
 							  start_list, start_aligned,
 							  end_list, end_aligned,
 							  &start, &end);
